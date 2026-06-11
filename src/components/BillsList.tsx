@@ -611,6 +611,40 @@ export default function BillsList({
                       </div>
                     </div>
 
+                    {/* Bill Progress: Total Bill Amount, Reserved Amount, Remaining Amount, Progress Percentage */}
+                    {(() => {
+                      const isShared = b.userId === 'shared';
+                      const totalBillAmount = isShared ? 1000000 : b.amount; // individual due portion
+                      const reservedAmount = b.reservedAmount || 0;
+                      const remainingAmount = Math.max(0, totalBillAmount - reservedAmount);
+                      const progressPercentage = Math.min(100, Math.round((reservedAmount / totalBillAmount) * 100));
+
+                      return (
+                        <div className="space-y-1.5 p-3.5 bg-slate-50/50 rounded-2xl border border-slate-100">
+                          <div className="flex justify-between text-[11px] font-mono text-slate-500 font-bold">
+                            <span>Bill Progress:</span>
+                            <span className="font-extrabold text-slate-700">{formatRupiah(reservedAmount)} / {formatRupiah(totalBillAmount)}</span>
+                          </div>
+                          
+                          <div className="h-2 bg-slate-200/50 rounded-full overflow-hidden block">
+                            <div 
+                              className="bg-emerald-500 h-full rounded-full transition-all" 
+                              style={{ width: `${progressPercentage}%` }}
+                            ></div>
+                          </div>
+
+                          <div className="flex justify-between items-center text-[10px] font-mono font-medium">
+                            <span className="text-emerald-700 font-extrabold bg-emerald-50/70 px-1.5 py-0.5 rounded-md">
+                              {progressPercentage}% Reserved
+                            </span>
+                            <span className="text-slate-450">
+                              Remaining Due: <span className="font-bold text-rose-600">{formatRupiah(remainingAmount)}</span>
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })()}
+
                     {/* Display notes if any */}
                     {b.notes && (
                       <div className="p-2.5 bg-amber-500/5 border border-amber-200/20 rounded-xl text-[10px] text-slate-500 flex items-start gap-1 font-mono leading-normal">
@@ -715,6 +749,40 @@ export default function BillsList({
                       {formatRupiah(b.amount)}
                     </span>
                   </div>
+
+                  {/* Bill Progress: Total Bill Amount, Reserved Amount, Remaining Amount, Progress Percentage */}
+                  {(() => {
+                    const isShared = b.userId === 'shared';
+                    const totalBillAmount = isShared ? 1000000 : b.amount; // individual due portion
+                    const reservedAmount = b.reservedAmount || 0;
+                    const remainingAmount = Math.max(0, totalBillAmount - reservedAmount);
+                    const progressPercentage = Math.min(100, Math.round((reservedAmount / totalBillAmount) * 100 || 0));
+
+                    return (
+                      <div className="space-y-1.5 p-2 bg-slate-50/50 rounded-2xl border border-slate-100 text-[10px]">
+                        <div className="flex justify-between font-mono text-slate-500 font-bold font-mono">
+                          <span>Progress:</span>
+                          <span className="font-extrabold text-slate-700">{formatRupiah(reservedAmount)} / {formatRupiah(totalBillAmount)}</span>
+                        </div>
+                        
+                        <div className="h-1.5 bg-slate-200/50 rounded-full overflow-hidden block">
+                          <div 
+                            className="bg-emerald-500 h-full rounded-full transition-all" 
+                            style={{ width: `${progressPercentage}%` }}
+                          ></div>
+                        </div>
+
+                        <div className="flex justify-between items-center font-mono font-medium text-[9px]">
+                          <span className="text-emerald-700 font-extrabold bg-emerald-50/75 px-1.5 rounded">
+                            {progressPercentage}% Saved
+                          </span>
+                          <span className="text-slate-450">
+                            Remaining Due: <span className="font-bold text-rose-600">{formatRupiah(remainingAmount)}</span>
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {b.notes && (
                      <div className="p-2.5 bg-slate-50 rounded-xl text-[9px] text-slate-400 font-mono">

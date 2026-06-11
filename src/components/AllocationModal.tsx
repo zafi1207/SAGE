@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { X, Sparkles, Check, RefreshCw, AlertCircle, HelpCircle } from 'lucide-react';
 import { User, Bill, SuggestedAllocation } from '../types';
 import { formatRupiah } from '../lib/utils';
-import { calculateRamaAllocation, calculateNadiyaAllocation } from '../lib/engines';
+import { calculateRamaAllocation, calculateNadiyaAllocation, getBillActiveDueDate } from '../lib/engines';
 
 interface AllocationModalProps {
   isOpen: boolean;
@@ -42,8 +42,14 @@ export default function AllocationModal({
   const [allocatedBills, setAllocatedBills] = useState<number>(0);
   const [allocatedSavings, setAllocatedSavings] = useState<number>(0);
   const [allocatedFree, setAllocatedFree] = useState<number>(0);
+  const [billAllocations, setBillAllocations] = useState<Record<string, number>>({});
 
   const [isCalculated, setIsCalculated] = useState<boolean>(false);
+
+  // Filter bills to only show and allocate those belonging to this specific user (or shared bills)
+  const userActiveUnpaidBills = activeUnpaidBills.filter(
+    b => b.userId === user.id || b.userId === 'shared'
+  );
 
   // Auto-calculate suggested allocation whenever amount changes
   useEffect(() => {
@@ -74,7 +80,7 @@ export default function AllocationModal({
         sugg = calculateRamaAllocation(
           incomeAmount,
           user,
-          activeUnpaidBills,
+          userActiveUnpaidBills,
           currentDate,
           kosRemainingThisMonth
         );
@@ -84,7 +90,7 @@ export default function AllocationModal({
       sugg = calculateNadiyaAllocation(
         incomeAmount,
         user,
-        activeUnpaidBills,
+        userActiveUnpaidBills,
         currentDate,
         kosRemainingThisMonth
       );
@@ -96,7 +102,33 @@ export default function AllocationModal({
     setAllocatedBills(sugg.bills);
     setAllocatedSavings(sugg.savings);
     setAllocatedFree(sugg.free);
+    setBillAllocations(sugg.billAllocations || {});
     setIsCalculated(true);
+  };
+
+  const handleBillAllocationChange = (billId: string, value: number) => {
+    const bill = userActiveUnpaidBills.find(b => b.id === billId);
+    if (!bill) return;
+    const billRemaining = Math.max(0, bill.amount - (bill.reservedAmount || 0));
+    
+    // Clamp within 0 and billRemaining
+    const clampedVal = Math.max(0, Math.min(billRemaining, value));
+    const oldVal = billAllocations[billId] || 0;
+    const diff = clampedVal - oldVal;
+
+    // We try to draw/add from/to free spending
+    if (allocatedFree >= diff) {
+      setBillAllocations(prev => ({ ...prev, [billId]: clampedVal }));
+      setAllocatedBills(prev => prev + diff);
+      setAllocatedFree(prev => prev - diff);
+    } else {
+      // If free spending can't cover, we can add as much as possible up to what free pending has
+      const possibleAdd = Math.max(0, allocatedFree);
+      const actualNewVal = oldVal + possibleAdd;
+      setBillAllocations(prev => ({ ...prev, [billId]: actualNewVal }));
+      setAllocatedBills(prev => prev + possibleAdd);
+      setAllocatedFree(0);
+    }
   };
 
   // Adjust sliders/inputs dynamically ensuring sum remains exact
@@ -173,7 +205,8 @@ export default function AllocationModal({
       bills: allocatedBills,
       kos: allocatedKos,
       savings: allocatedSavings,
-      free: allocatedFree
+      free: allocatedFree,
+      billAllocations: billAllocations
     });
     onClose();
   };
@@ -323,23 +356,75 @@ export default function AllocationModal({
                   </div>
                 )}
 
-                {/* 3. Bills (Installments & Due Bills) */}
-                <div className="space-y-1.5">
-                  <div className="flex justify-between text-xs text-slate-700 font-bold">
-                    <span>💳 Bills Safe Deposit</span>
+                {/* 3. Bill Allocation (Replaces Bills Safe Deposit slider) */}
+                <div className="space-y-3 pt-1">
+                  <div className="flex justify-between items-center text-xs text-slate-700 font-bold">
+                    <span className="flex items-center gap-1">💳 Bill Allocation</span>
                     <span className="font-mono text-slate-900 font-extrabold">{formatRupiah(allocatedBills)}</span>
                   </div>
-                  <input
-                    type="range"
-                    min={0}
-                    max={incomeAmount}
-                    step={10000}
-                    value={allocatedBills}
-                    onChange={(e) => handleAdjustValue('bills', Number(e.target.value))}
-                    className="w-full accent-rose-500 h-1.5 bg-slate-200 rounded-md cursor-ew-resize"
-                  />
+                  
+                  {/* List of bills */}
+                  {userActiveUnpaidBills.length > 0 ? (
+                    <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                      {[...userActiveUnpaidBills]
+                        .sort((a, b) => {
+                          const dateA = getBillActiveDueDate(a, currentDate.substring(0, 7));
+                          const dateB = getBillActiveDueDate(b, currentDate.substring(0, 7));
+                          return dateA.localeCompare(dateB);
+                        })
+                        .map(bill => {
+                          const activeMonthStr = currentDate.substring(0, 7);
+                          const dueDate = getBillActiveDueDate(bill, activeMonthStr);
+                          const isShared = bill.userId === 'shared';
+                          const totalAmt = isShared ? 1000000 : bill.amount;
+                          const reservedAmt = bill.reservedAmount || 0;
+                          const remainingAmt = Math.max(0, totalAmt - reservedAmt);
+                          const currentAllocated = billAllocations[bill.id] || 0;
+
+                          return (
+                            <div key={bill.id} className="p-3 bg-white border border-slate-200 rounded-2xl flex flex-col gap-2 shadow-sm">
+                              <div className="flex justify-between items-start">
+                                <div>
+                                  <div className="font-bold text-slate-800 text-[11px] font-display">
+                                    {bill.name}
+                                  </div>
+                                  <div className="text-[10px] text-slate-400 font-mono">
+                                    Due: {dueDate}
+                                  </div>
+                                </div>
+                                <div className="text-right text-[10px] font-mono font-medium text-slate-500">
+                                  <div>Total: <span className="font-bold text-slate-700">{formatRupiah(totalAmt)}</span></div>
+                                  <div>Remaining: <span className="font-bold text-rose-600">{formatRupiah(remainingAmt)}</span></div>
+                                </div>
+                              </div>
+                              
+                              <div className="flex items-center gap-2">
+                                <span className="text-[9px] text-slate-400 font-bold font-mono shrink-0">Allocate:</span>
+                                <div className="relative flex-1">
+                                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 font-bold text-slate-400 text-[10px] font-mono">Rp</span>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={remainingAmt}
+                                    value={currentAllocated || ''}
+                                    onChange={(e) => handleBillAllocationChange(bill.id, Number(e.target.value))}
+                                    className="w-full pl-7 pr-2 py-1.5 bg-slate-50 hover:bg-slate-100/50 focus:bg-white border border-slate-200 rounded-xl font-bold text-[#0f172a] text-xs focus:outline-none focus:border-rose-500 transition-all font-mono"
+                                    placeholder="0"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-slate-100 rounded-2xl text-[10px] text-slate-500 text-center font-mono">
+                      No outstanding obligations this month.
+                    </div>
+                  )}
+
                   <span className="text-[9px] text-slate-400 block font-mono font-medium">
-                     Unpaid active monthly bills target secure. Only spent when bill is paid.
+                    Enter reserved funds for each individual bill. Remaining amount updates automatically in calculations.
                   </span>
                 </div>
 

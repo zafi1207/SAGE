@@ -261,9 +261,25 @@ export default function App() {
     await addTransactionToDB(newTx);
 
     // If allocation includes some bills portion, of course, let's record that!
-    
+    let nextBills = bills;
+    if (allocation.billAllocations) {
+      nextBills = await Promise.all(bills.map(async (b) => {
+        const addedAlloc = allocation.billAllocations?.[b.id] || 0;
+        if (addedAlloc > 0) {
+          const updatedBill = {
+            ...b,
+            reservedAmount: (b.reservedAmount || 0) + addedAlloc
+          };
+          await saveBillToDB(updatedBill);
+          return updatedBill;
+        }
+        return b;
+      }));
+    }
+
     // Refresh local lists
     setUsers(users.map(u => u.id === updatedUser.id ? updatedUser : u));
+    setBills(nextBills);
     setTransactions(prev => [newTx, ...prev]);
   };
 
@@ -325,6 +341,9 @@ export default function App() {
       updatedBill.oneTimePaidDate = currentDate;
       updatedBill.isArchived = true;
     }
+
+    // Reset reservedAmount on the bill since it is now paid/settled
+    updatedBill.reservedAmount = 0;
 
     // Update bill database
     await saveBillToDB(updatedBill);
@@ -624,7 +643,7 @@ export default function App() {
       <AllocationModal
         isOpen={isAllocationOpen}
         onClose={() => setIsAllocationOpen(false)}
-        user={selectedUser === 'rama' ? users[0] : users[1]}
+        user={users.find(u => u.id === selectedUser) || (selectedUser === 'rama' ? users[0] : users[1])}
         activeUnpaidBills={unpaidMonthlyActiveBills}
         currentDate={currentDate}
         kosRemainingThisMonth={selectedUser === 'rama' ? Math.max(0, 1000000 - ramaKosAllocated) : Math.max(0, 1000000 - nadiyaKosAllocated)}

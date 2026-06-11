@@ -42,11 +42,15 @@ export function calculateNadiyaAllocation(
   });
 
   let allocatedBills = 0;
+  const billAllocations: Record<string, number> = {};
   for (const bill of sortedBills) {
     if (remaining <= 0) break;
-    const toAllocate = Math.min(bill.amount, remaining);
+    const billRemaining = Math.max(0, bill.amount - (bill.reservedAmount || 0));
+    if (billRemaining <= 0) continue;
+    const toAllocate = Math.min(billRemaining, remaining);
     allocatedBills += toAllocate;
     remaining -= toAllocate;
+    billAllocations[bill.id] = toAllocate;
   }
 
   // 4. Shared Rent (Kos): Splitting up to remaining cost this month
@@ -73,7 +77,8 @@ export function calculateNadiyaAllocation(
     bills: allocatedBills,
     kos: allocatedKos,
     savings: allocatedSavings,
-    free: allocatedFree
+    free: allocatedFree,
+    billAllocations
   };
 }
 
@@ -96,11 +101,15 @@ export function calculateRamaAllocation(
   });
 
   let allocatedBills = 0;
+  const billAllocations: Record<string, number> = {};
   for (const bill of sortedRamaBills) {
     if (remaining <= 0) break;
-    const toAllocate = Math.min(bill.amount, remaining);
+    const billRemaining = Math.max(0, bill.amount - (bill.reservedAmount || 0));
+    if (billRemaining <= 0) continue;
+    const toAllocate = Math.min(billRemaining, remaining);
     allocatedBills += toAllocate;
     remaining -= toAllocate;
+    billAllocations[bill.id] = toAllocate;
   }
 
   // Priority 2: Rent (Kos split)
@@ -127,6 +136,7 @@ export function calculateRamaAllocation(
     bills: allocatedBills,
     kos: allocatedKos,
     savings: allocatedSavings,
-    free: allocatedFree
+    free: allocatedFree,
+    billAllocations
   };
 }

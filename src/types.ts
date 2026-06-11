@@ -56,6 +56,9 @@ export interface Bill {
 
   // Description / memo for the bill
   notes?: string;
+
+  // Track partial money/savings reserved specifically for this bill:
+  reservedAmount?: number;
 }
 
 export interface Transaction {
@@ -80,4 +83,5 @@ export interface SuggestedAllocation {
   kos: number;
   savings: number;
   free: number;
+  billAllocations?: Record<string, number>;
 }
