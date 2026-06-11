@@ -1,0 +1,6 @@
+{
+  "name": "Sage",
+  "description": "A mobile-first life finance companion helping users structure recurring and installment debts, coordinate shared expenses, and allocate irregular and stable incomes with custom daily spending guides.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
